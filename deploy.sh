@@ -10,7 +10,7 @@
 #   Test:       /home/cumbre_ia/proyecto_legaly
 #
 #   <PROYECTO_DIR>/
-#   ├── Back_Legaly/  Front_Legaly/
+#   ├── Back_Legaly/  Front_legaly/
 #   ├── server_prod.env  server_test.env
 #   ├── docker-compose(server prod).yml  docker-compose(server test).yml
 #   └── infra/deploy.sh   infra/migraciones/
@@ -22,7 +22,7 @@
 # Variables (con default):
 #   ENTORNO            prod | test                          (inferido por la ruta)
 #   PROYECTO_DIR       raíz del proyecto                    (padre de infra/)
-#   ENV_FILE           .env del entorno                     ($PROYECTO_DIR/server_$ENTORNO.env)
+#   ENV_FILE           .env del entorno                     (server_$ENTORNO.env o .env)
 #   COMPOSE_FILE       docker-compose del servidor          (autodetectado en $PROYECTO_DIR)
 #   MIGRACIONES_DIR    carpeta de migraciones               (<script>/migraciones)
 #   BACKUP_DIR         carpeta de respaldos                 (<script>/backups)
@@ -45,7 +45,15 @@ if [ -z "${ENTORNO:-}" ]; then
   esac
 fi
 
-ENV_FILE="${ENV_FILE:-$PROYECTO_DIR/server_${ENTORNO}.env}"
+# ENV_FILE: se puede forzar. Si no, usa server_<entorno>.env si existe; si no, .env
+# (en los servidores el archivo real es .env, que es el que lee el compose).
+if [ -z "${ENV_FILE:-}" ]; then
+  if [ -f "$PROYECTO_DIR/server_${ENTORNO}.env" ]; then
+    ENV_FILE="$PROYECTO_DIR/server_${ENTORNO}.env"
+  else
+    ENV_FILE="$PROYECTO_DIR/.env"
+  fi
+fi
 
 # Autodetección del compose si no se indicó COMPOSE_FILE
 if [ -z "${COMPOSE_FILE:-}" ]; then

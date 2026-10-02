@@ -59,7 +59,7 @@ cd /home/cumbre_ia/proyecto_legaly
 |---------------------|--------------------------------------|--------------------------------------|
 | `ENTORNO`           | `prod`                               | `prod` o `test`                      |
 | `PROYECTO_DIR`      | padre de `infra/`                    | raíz del proyecto                    |
-| `ENV_FILE`          | `$PROYECTO_DIR/server_$ENTORNO.env`  | `.env` del entorno                   |
+| `ENV_FILE`          | `server_$ENTORNO.env` o `.env`       | `.env` del entorno                   |
 | `COMPOSE_FILE`      | autodetectado en `$PROYECTO_DIR`     | compose del servidor                 |
 | `MIGRACIONES_DIR`   | `<script>/migraciones`               | carpeta de migraciones               |
 | `BACKUP_DIR`        | `<script>/backups`                   | carpeta de respaldos                 |
