@@ -67,6 +67,8 @@ cd /home/cumbre_ia/proyecto_legaly
 | `DB_CONTAINER`      | `bd_postgres`                        | contenedor de PostgreSQL             |
 | `DB_SERVICIO`       | `db_legaly`                          | servicio de BD en el compose         |
 | `SERVICIOS`         | `api_legaly web_legaly`              | servicios de app a construir/levantar|
+| `HEALTH_API_URL`    | `$VITE_API_URL/auth/verify`          | URL de healthcheck de la API (espera 401) |
+| `HEALTH_FRONT_URL`  | `$CORS_ORIGIN`                       | URL de healthcheck del frontend (espera 200) |
 
 ## Cómo funciona
 

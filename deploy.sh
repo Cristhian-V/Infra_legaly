@@ -30,6 +30,8 @@
 #   DB_CONTAINER       contenedor de PostgreSQL             (bd_postgres)
 #   DB_SERVICIO        servicio de BD en el compose         (db_legaly)
 #   SERVICIOS          servicios de app a construir/levantar (api_legaly web_legaly)
+#   HEALTH_API_URL     URL del healthcheck de la API         ($VITE_API_URL/auth/verify)
+#   HEALTH_FRONT_URL   URL del healthcheck del frontend      ($CORS_ORIGIN)
 # ============================================================================
 set -euo pipefail
 
@@ -168,22 +170,27 @@ ok "Servicios arriba: $SERVICIOS"
 
 # --- 7. Healthcheck ---
 log "Healthcheck"
+# Se pueden fijar HEALTH_API_URL / HEALTH_FRONT_URL en el .env (p. ej. en test,
+# donde el server no alcanza su propio dominio público: usar http://localhost:3000 y http://localhost:5173).
+HEALTH_API_URL="${HEALTH_API_URL:-${VITE_API_URL:+$VITE_API_URL/auth/verify}}"
+HEALTH_FRONT_URL="${HEALTH_FRONT_URL:-${CORS_ORIGIN:-}}"
+
 if ! command -v curl >/dev/null 2>&1; then
   err "curl no está disponible: se omite el healthcheck"
 else
-  if [ -n "${VITE_API_URL:-}" ]; then
-    code="$(curl -s -o /dev/null -w '%{http_code}' "$VITE_API_URL/auth/verify" || echo 000)"
-    [ "$code" = "401" ] && ok "API $VITE_API_URL/auth/verify -> 401" \
+  if [ -n "$HEALTH_API_URL" ]; then
+    code="$(curl -s -o /dev/null -w '%{http_code}' "$HEALTH_API_URL" || echo 000)"
+    [ "$code" = "401" ] && ok "API $HEALTH_API_URL -> 401" \
       || { err "API respondió $code (se esperaba 401)"; exit 1; }
   else
-    err "VITE_API_URL no definido: se omite el healthcheck de la API"
+    err "HEALTH_API_URL no definido: se omite el healthcheck de la API"
   fi
-  if [ -n "${CORS_ORIGIN:-}" ]; then
-    code="$(curl -s -o /dev/null -w '%{http_code}' "$CORS_ORIGIN" || echo 000)"
-    [ "$code" = "200" ] && ok "Front $CORS_ORIGIN -> 200" \
+  if [ -n "$HEALTH_FRONT_URL" ]; then
+    code="$(curl -s -o /dev/null -w '%{http_code}' "$HEALTH_FRONT_URL" || echo 000)"
+    [ "$code" = "200" ] && ok "Front $HEALTH_FRONT_URL -> 200" \
       || { err "Front respondió $code (se esperaba 200)"; exit 1; }
   else
-    err "CORS_ORIGIN no definido: se omite el healthcheck del frontend"
+    err "HEALTH_FRONT_URL no definido: se omite el healthcheck del frontend"
   fi
 fi
 
