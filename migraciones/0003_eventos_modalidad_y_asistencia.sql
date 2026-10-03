@@ -1,6 +1,8 @@
 -- Migración 0003 — Modalidad de eventos + eventos de usuario + participantes/asistencia
 -- Cubre los cambios "modalidad-eventos" y "confirmacion-asistencia-eventos".
--- Idempotente: puede ejecutarse varias veces sin error.
+-- Idempotente y tolerante a la versión antigua de participantes_evento
+-- (que solo cubría eventos de usuario: PK (evento_id, usuario_id) sin tipo_evento).
+-- Puede ejecutarse varias veces sin error.
 
 BEGIN;
 
@@ -26,8 +28,14 @@ CREATE TABLE IF NOT EXISTS eventos_usuarios (
     modalidad character varying NOT NULL DEFAULT 'presencial'
 );
 
-ALTER TABLE eventos_usuarios
-    ADD COLUMN IF NOT EXISTS modalidad character varying NOT NULL DEFAULT 'presencial';
+-- Columnas que pudieran faltar en una versión previa de la tabla
+ALTER TABLE eventos_usuarios ADD COLUMN IF NOT EXISTS titulo character varying;
+ALTER TABLE eventos_usuarios ADD COLUMN IF NOT EXISTS descripcion text;
+ALTER TABLE eventos_usuarios ADD COLUMN IF NOT EXISTS fecha_hora timestamp without time zone;
+ALTER TABLE eventos_usuarios ADD COLUMN IF NOT EXISTS tipo_evento_id integer;
+ALTER TABLE eventos_usuarios ADD COLUMN IF NOT EXISTS creado_por_id integer;
+ALTER TABLE eventos_usuarios ADD COLUMN IF NOT EXISTS creado_en timestamp without time zone DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE eventos_usuarios ADD COLUMN IF NOT EXISTS modalidad character varying NOT NULL DEFAULT 'presencial';
 
 DO $$ BEGIN
     ALTER TABLE eventos_usuarios
@@ -45,6 +53,45 @@ CREATE TABLE IF NOT EXISTS participantes_evento (
     respondido_en timestamp with time zone,
     CONSTRAINT participantes_evento_pkey PRIMARY KEY (tipo_evento, evento_id, usuario_id)
 );
+
+-- 3.1 Adaptar una tabla preexistente (versión antigua)
+ALTER TABLE participantes_evento ADD COLUMN IF NOT EXISTS tipo_evento character varying;
+ALTER TABLE participantes_evento ADD COLUMN IF NOT EXISTS estado_asistencia character varying NOT NULL DEFAULT 'pendiente';
+ALTER TABLE participantes_evento ADD COLUMN IF NOT EXISTS comentario text;
+ALTER TABLE participantes_evento ADD COLUMN IF NOT EXISTS respondido_en timestamp with time zone;
+
+-- El evento ya es polimórfico: quitar la FK antigua a eventos_usuarios
+ALTER TABLE participantes_evento DROP CONSTRAINT IF EXISTS participantes_evento_evento_id_fkey;
+
+-- Rellenar tipo_evento de las filas viejas (eran de eventos de usuario) y exigirlo
+UPDATE participantes_evento SET tipo_evento = 'usuario' WHERE tipo_evento IS NULL;
+ALTER TABLE participantes_evento ALTER COLUMN tipo_evento SET NOT NULL;
+
+-- Reemplazar la PK antigua (evento_id, usuario_id) por (tipo_evento, evento_id, usuario_id)
+DO $$
+DECLARE pk_name text;
+BEGIN
+    SELECT c.conname INTO pk_name
+    FROM pg_constraint c
+    JOIN pg_class t ON t.oid = c.conrelid
+    WHERE t.relname = 'participantes_evento' AND c.contype = 'p'
+      AND pg_get_constraintdef(c.oid) NOT LIKE '%tipo_evento%'
+    LIMIT 1;
+    IF pk_name IS NOT NULL THEN
+        EXECUTE 'ALTER TABLE participantes_evento DROP CONSTRAINT ' || quote_ident(pk_name);
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        WHERE t.relname = 'participantes_evento' AND c.contype = 'p'
+    ) THEN
+        ALTER TABLE participantes_evento
+            ADD CONSTRAINT participantes_evento_pkey PRIMARY KEY (tipo_evento, evento_id, usuario_id);
+    END IF;
+END $$;
 
 DO $$ BEGIN
     ALTER TABLE participantes_evento
